@@ -94,12 +94,41 @@ func (s *Source) Open(ctx context.Context, rp opencdc.Position) error {
 		return err
 	}
 
-	s.iterator, err = iterator.NewCombinedIterator(
+	baseIterator, err := iterator.NewCombinedIterator(
 		ctx, s.config.AWSBucket, s.config.Prefix, s.config.PollingPeriod, s.client, p,
 	)
 	if err != nil {
 		return fmt.Errorf("couldn't create a combined iterator: %w", err)
 	}
+
+	// If PDF chunking is enabled, wrap with PdfChunkIterator
+	if s.config.EnablePdfChunking {
+		// Convert string strategy to ChunkingStrategy type
+		var strategy iterator.ChunkingStrategy
+		switch s.config.PdfChunkStrategy {
+		case "page":
+			strategy = iterator.ChunkByPage
+		case "paragraph":
+			strategy = iterator.ChunkByParagraph
+		case "size":
+			strategy = iterator.ChunkBySize
+		default:
+			strategy = iterator.ChunkByPage // Default to page-based chunking
+		}
+
+		// Create config for PDF chunking
+		chunkConfig := iterator.PdfChunkingConfig{
+			Strategy:     strategy,
+			ChunkSize:    s.config.PdfChunkSize,
+			ChunkOverlap: s.config.PdfChunkOverlap,
+		}
+
+		// Wrap base iterator with PDF chunking iterator, passing the position
+		s.iterator = iterator.NewPdfChunkIterator(baseIterator, chunkConfig, p)
+	} else {
+		s.iterator = baseIterator
+	}
+
 	return nil
 }
 

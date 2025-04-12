@@ -94,6 +94,26 @@ specification:
         validations:
           - type: required
             value: ""
+      - name: enablePdfChunking
+        description: ""
+        type: bool
+        default: "false"
+        validations: []
+      - name: pdfChunkOverlap
+        description: ""
+        type: int
+        default: "20"
+        validations: []
+      - name: pdfChunkSize
+        description: ""
+        type: int
+        default: "1000"
+        validations: []
+      - name: pdfChunkStrategy
+        description: ""
+        type: string
+        default: page
+        validations: []
       - name: pollingPeriod
         description: polling period for the CDC mode, formatted as a time.Duration string.
         type: duration

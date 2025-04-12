@@ -32,6 +32,8 @@ const (
 const (
 	snapshotPrefixChar = 's'
 	cdcPrefixChar      = 'c'
+
+	pdfChunkPrefixChar = 'p'
 )
 
 type Type int
@@ -40,6 +42,15 @@ type Position struct {
 	Key       string
 	Timestamp time.Time
 	Type      Type
+	
+	// PDF chunking fields
+	ChunkIndex  int
+	TotalChunks int
+}
+
+// IsChunkPosition returns true if this is a PDF chunk position
+func (p Position) IsChunkPosition() bool {
+	return p.ChunkIndex > 0 || p.TotalChunks > 0
 }
 
 func ParseRecordPosition(p opencdc.Position) (Position, error) {
@@ -48,6 +59,11 @@ func ParseRecordPosition(p opencdc.Position) (Position, error) {
 		return Position{}, nil
 	}
 	s := string(p)
+
+	if strings.Contains(s, "_p") {
+		return parsePdfChunkPosition(s)
+	}
+
 	index := strings.LastIndex(s, "_")
 	if index == -1 {
 		return Position{}, errors.New("invalid position format, no '_' found")
@@ -72,11 +88,77 @@ func ParseRecordPosition(p opencdc.Position) (Position, error) {
 	}, err
 }
 
+// parsePdfChunkPosition parses a position string with PDF chunk information
+// Format: key_pTIMESTAMP_CHUNKINDEX_TOTALCHUNKS_MODE
+func parsePdfChunkPosition(s string) (Position, error) {
+	parts := strings.Split(s, "_")
+	if len(parts) < 5 {
+		return Position{}, fmt.Errorf("invalid PDF chunk position format, expected at least 5 parts but got %d", len(parts))
+	}
+	
+	// Extract key (could contain underscores)
+	keyParts := parts[:len(parts)-4]
+	key := strings.Join(keyParts, "_")
+	
+	// Extract timestamp
+	if !strings.HasPrefix(parts[len(parts)-4], "p") {
+		return Position{}, fmt.Errorf("invalid PDF chunk position format, expected 'p' prefix")
+	}
+	
+	timestampStr := parts[len(parts)-4][1:] // Remove 'p'
+	seconds, err := strconv.ParseInt(timestampStr, 10, 64)
+	if err != nil {
+		return Position{}, fmt.Errorf("could not parse chunk position timestamp: %w", err)
+	}
+	
+	// Extract chunk index
+	chunkIndex, err := strconv.Atoi(parts[len(parts)-3])
+	if err != nil {
+		return Position{}, fmt.Errorf("could not parse chunk index: %w", err)
+	}
+	
+	// Extract total chunks
+	totalChunks, err := strconv.Atoi(parts[len(parts)-2])
+	if err != nil {
+		return Position{}, fmt.Errorf("could not parse total chunks: %w", err)
+	}
+
+	// Extract mode
+	mode := parts[len(parts)-1]
+	
+	// Determine the position type (snapshot or CDC)
+	pType := TypeSnapshot
+	if mode[0] == cdcPrefixChar {
+		// For in-progress chunks, use the same type as the original file
+		// We'll determine this from context
+		pType = TypeCDC // Default to CDC if in-progress
+	}
+	
+	return Position{
+		Key:         key,
+		Timestamp:   time.Unix(seconds, 0),
+		Type:        pType,
+		ChunkIndex:  chunkIndex,
+		TotalChunks: totalChunks,
+	}, nil
+}
+
 func (p Position) ToRecordPosition() opencdc.Position {
 	char := snapshotPrefixChar
 	if p.Type == TypeCDC {
 		char = cdcPrefixChar
 	}
+
+	// If this is a PDF chunk position, use the chunk format
+	if p.IsChunkPosition() {
+		return []byte(fmt.Sprintf("%s_p%d_%d_%d_%c", 
+			p.Key, 
+			p.Timestamp.Unix(), 
+			p.ChunkIndex, 
+			p.TotalChunks, 
+			char))
+	}
+
 	return []byte(fmt.Sprintf("%s_%c%d", p.Key, char, p.Timestamp.Unix()))
 }
 

@@ -32,5 +32,9 @@ type Config struct {
 	config.Config
 
 	// polling period for the CDC mode, formatted as a time.Duration string.
-	PollingPeriod time.Duration `json:"pollingPeriod" default:"1s"`
+	PollingPeriod     time.Duration `json:"pollingPeriod" default:"1s"`
+	EnablePdfChunking bool          `json:"enablePdfChunking" default:"false"`
+	PdfChunkStrategy  string        `json:"pdfChunkStrategy" default:"page"`
+	PdfChunkSize      int           `json:"pdfChunkSize" default:"1000"`
+	PdfChunkOverlap   int           `json:"pdfChunkOverlap" default:"20"`
 }

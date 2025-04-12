@@ -89,6 +89,22 @@ pipelines:
           # Type: string
           # Required: yes
           aws.secretAccessKey: ""
+          # 
+          # Type: bool
+          # Required: no
+          enablePdfChunking: "false"
+          # 
+          # Type: int
+          # Required: no
+          pdfChunkOverlap: "20"
+          # 
+          # Type: int
+          # Required: no
+          pdfChunkSize: "1000"
+          # 
+          # Type: string
+          # Required: no
+          pdfChunkStrategy: "page"
           # polling period for the CDC mode, formatted as a time.Duration
           # string.
           # Type: duration
